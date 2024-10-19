@@ -34,7 +34,7 @@ type Scheme struct {
 
 // As well as [a-z], these characters are allowed in URI schemes
 // https://github.com/JuliaWeb/URIs.jl/blob/dce395c3/src/URIs.jl#L91-L108
-// TODO: handle user info
+// TODO: handle user info and IPv6 hosts
 var ADDITIONAL_ALLOWED_SCHEME_CHARS = []rune{'-', '+', '.'}
 var SCHEME_PATTERN = schemePattern()
 var CLEAN_SCHEME_PATTERN = cleanSchemePattern()
@@ -87,6 +87,9 @@ func replaceAtPositions(s string, positions []int, replacement rune) string {
 // beyond http[s] [1, 2], as browsers do not support many different schemes.  However,
 // it may be the case that different schemes are supported on different non-browser
 // applications, so we *should* support defanging.
+//
+// There is also consideration to have enough information in a defanged stream such that
+// it is invertible to its original scheme.
 //
 // [1]: https://stackoverflow.com/a/56150152
 // [2]: https://github.com/ioc-fang/ioc_fanger
@@ -233,6 +236,17 @@ func cleanScheme(scheme Scheme) Scheme {
 	return scheme
 }
 
+// Importantly, confirm that a defanged scheme is not still a valid scheme
+func schemeIsKnown(scheme string, knownSchemes []Scheme) bool {
+	scheme = strings.ToLower(scheme)
+	for _, knownScheme := range knownSchemes {
+		if strings.ToLower(scheme) == knownScheme.UriScheme {
+			return true
+		}
+	}
+	return false
+}
+
 func main() {
 	htmltable.Logger = func(_ context.Context, msg string, fields ...any) {
 		fmt.Printf("[INFO] %s %v\n", msg, fields)
@@ -259,6 +273,16 @@ func main() {
 		scheme = cleanScheme(scheme)
 		if scheme.Status == Permanent {
 			schemes = append(schemes, scheme)
+		}
+	}
+
+	// Confirm that no defanged schemes are known!
+	fmt.Println("[INFO] Checking that the defang algorithm does not produce any valid schemes")
+	for _, scheme := range schemes {
+		defangedScheme := defangScheme(scheme.UriScheme)
+		if schemeIsKnown(defangedScheme, schemes) {
+			fmt.Printf("[ERROR] Defanged scheme \"%s\" is still a valid scheme", defangedScheme)
+			os.Exit(1)
 		}
 	}
 
