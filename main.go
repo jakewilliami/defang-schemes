@@ -286,6 +286,17 @@ func main() {
 		}
 	}
 
+	fmt.Println("[INFO] Checking that the defang algorithm is (kind of) invertible")
+	seenDefangedSchemes := make(map[string]struct{})
+	for _, scheme := range schemes {
+		defangedScheme := defangScheme(scheme.UriScheme)
+		if _, exists := seenDefangedSchemes[defangedScheme]; exists {
+			fmt.Printf("[ERROR] Defanged scheme \"%s\" is duplicated, meaning that re-fanging would be ambiguous", defangedScheme)
+			os.Exit(1)
+		}
+		seenDefangedSchemes[defangedScheme] = struct{}{}
+	}
+
 	// Filter for permanent schemes
 	var permanentSchemes []Scheme
 	for _, scheme := range schemes {
