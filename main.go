@@ -32,11 +32,34 @@ type Scheme struct {
 	Notes               string       `header:"Notes"`
 }
 
+// As well as [a-z], these characters are allowed in URI schemes
+// https://github.com/JuliaWeb/URIs.jl/blob/dce395c3/src/URIs.jl#L91-L108
+// TODO: handle user info
+var ADDITIONAL_ALLOWED_SCHEME_CHARS = []rune{'-', '+', '.'}
+var SCHEME_PATTERN = schemePattern()
+var CLEAN_SCHEME_PATTERN = cleanSchemePattern()
+
 // Validate Scheme struct
 // https://stackoverflow.com/a/71934231
 func (s *Scheme) Validate() error {
 	validate := validator.New()
 	return validate.Struct(s)
+}
+
+// Construct scheme pattern to use in validation/cleaning step
+func schemePattern() *regexp.Regexp {
+	var allowedChars string
+	for _, char := range ADDITIONAL_ALLOWED_SCHEME_CHARS {
+		allowedChars += string(char)
+	}
+	pattern := fmt.Sprintf(`[\w%s]+`, regexp.QuoteMeta(allowedChars))
+	return regexp.MustCompile(pattern)
+}
+
+// Schemes from IANA can contain additional information in parentheses
+func cleanSchemePattern() *regexp.Regexp {
+	pattern := fmt.Sprintf(`^(%s)(?:\s+\((.*)\))?$`, SCHEME_PATTERN)
+	return regexp.MustCompile(pattern)
 }
 
 // Within s, replace characters at `positions' with the rune defined in `replacement`
@@ -136,6 +159,16 @@ func constructPyList(strs []string, varName string) string {
 	return fmt.Sprintf("%s = [\n%s\n]", varName, strings.Join(lines, "\n"))
 }
 
+func constructPySchemeList(schemes []Scheme, varName string) string {
+	var rawSchemes []string
+
+	for _, scheme := range schemes {
+		rawSchemes = append(rawSchemes, scheme.UriScheme)
+	}
+
+	return constructPyList(rawSchemes, varName)
+}
+
 func constructPyDict(keys []string, values []string, varName string) string {
 	if len(keys) != len(values) {
 		fmt.Printf("[ERROR] Keys and values must be the same length: keys length = %d, values length = %d", len(keys), len(values))
@@ -155,27 +188,49 @@ func constructPyDict(keys []string, values []string, varName string) string {
 	return fmt.Sprintf("%s = {\n%s\n}", varName, strings.Join(lines, "\n"))
 }
 
-func constructPyDefangDict(schemes []string, varName string) string {
-	var defangedSchemed []string
+func constructPyDefangSchemeDict(schemes []Scheme, varName string) string {
+	var rawSchemes []string
+	var defangedSchemes []string
 
 	for _, scheme := range schemes {
-		defangedSchemed = append(defangedSchemed, defangScheme(scheme))
+		rawSchemes = append(rawSchemes, scheme.UriScheme)
+		defangedSchemes = append(defangedSchemes, defangScheme(scheme.UriScheme))
 	}
 
-	return constructPyDict(schemes, defangedSchemed, varName)
+	return constructPyDict(rawSchemes, defangedSchemes, varName)
 }
 
 // Mostly, the `URI Scheme` field is good, but there is a scheme called `shttp (OBSOLETE)`,
 // which we need to clean up
-func cleanScheme(schemeRaw string) string {
-	// Find the index of the first parenthesis
-	startIndex := strings.Index(schemeRaw, "(")
-	if startIndex == -1 {
-		// Return the original string if there's no parenthesis
-		return schemeRaw
+func cleanScheme(scheme Scheme) Scheme {
+	schemeRaw := scheme.UriScheme
+	matches := CLEAN_SCHEME_PATTERN.FindStringSubmatch(schemeRaw)
+
+	if matches == nil || len(matches) == 0 {
+		fmt.Printf("[ERROR] Invalid scheme for \"%s\"", schemeRaw)
+		os.Exit(1)
 	}
-	// Extract the substring up to the first parenthesis
-	return strings.TrimSpace(schemeRaw[:startIndex])
+
+	// Set the first match to the URI scheme
+	// NOTE: we start counting from 1 because the first element is the entire match
+	scheme.UriScheme = matches[1]
+
+	// If the URI scheme holds additional information, add it to notes
+	if len(matches) > 2 && matches[2] != "" {
+		scheme.Notes = matches[2]
+	}
+
+	// Confirm we don't have any unhandled matching information
+	if len(matches) > 3 {
+		fmt.Printf("[ERROR] Unhandled matching groups in scheme regex for \"%s\"", schemeRaw)
+		os.Exit(1)
+	}
+
+	// Ensure scheme is lowercase
+	scheme.UriScheme = strings.ToLower(scheme.UriScheme)
+
+	// Return the (potentially modified) scheme
+	return scheme
 }
 
 func main() {
@@ -193,7 +248,7 @@ func main() {
 	}
 
 	// Collect URI schemes into a string list
-	var schemes []string
+	var schemes []Scheme
 	for i := 0; i < len(table); i++ {
 		scheme := table[i]
 		err := scheme.Validate()
@@ -201,16 +256,24 @@ func main() {
 			fmt.Printf("[ERROR] Invalid Scheme struct: %s; Scheme: %v", err, scheme)
 			os.Exit(1)
 		}
-		scheme.UriScheme = cleanScheme(scheme.UriScheme)
+		scheme = cleanScheme(scheme)
 		if scheme.Status == Permanent {
-			schemes = append(schemes, scheme.UriScheme)
+			schemes = append(schemes, scheme)
+		}
+	}
+
+	// Filter for permanent schemes
+	var permanentSchemes []Scheme
+	for _, scheme := range schemes {
+		if scheme.Status == Permanent {
+			permanentSchemes = append(permanentSchemes, scheme)
 		}
 	}
 
 	// Format the output as a Python list
-	pyStr := constructPyList(schemes, "uriSchemes")
+	pyStr := constructPySchemeList(permanentSchemes, "uriSchemes")
 	fmt.Println(pyStr)
 
-	pyDict := constructPyDefangDict(schemes, "uriSchemesDefangedMap")
+	pyDict := constructPyDefangSchemeDict(permanentSchemes, "uriSchemesDefangedMap")
 	fmt.Println(pyDict)
 }
