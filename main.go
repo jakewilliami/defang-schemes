@@ -174,7 +174,7 @@ func constructPySchemeList(schemes []Scheme, varName string) string {
 
 func constructPyDict(keys []string, values []string, varName string) string {
 	if len(keys) != len(values) {
-		fmt.Printf("[ERROR] Keys and values must be the same length: keys length = %d, values length = %d", len(keys), len(values))
+		fmt.Printf("[ERROR] Keys and values must be the same length: keys length = %d, values length = %d\n", len(keys), len(values))
 		os.Exit(1)
 	}
 
@@ -210,7 +210,7 @@ func cleanScheme(scheme Scheme) Scheme {
 	matches := CLEAN_SCHEME_PATTERN.FindStringSubmatch(schemeRaw)
 
 	if matches == nil || len(matches) == 0 {
-		fmt.Printf("[ERROR] Invalid scheme for \"%s\"", schemeRaw)
+		fmt.Printf("[ERROR] Invalid scheme for \"%s\"\n", schemeRaw)
 		os.Exit(1)
 	}
 
@@ -225,7 +225,7 @@ func cleanScheme(scheme Scheme) Scheme {
 
 	// Confirm we don't have any unhandled matching information
 	if len(matches) > 3 {
-		fmt.Printf("[ERROR] Unhandled matching groups in scheme regex for \"%s\"", schemeRaw)
+		fmt.Printf("[ERROR] Unhandled matching groups in scheme regex for \"%s\"\n", schemeRaw)
 		os.Exit(1)
 	}
 
@@ -237,7 +237,7 @@ func cleanScheme(scheme Scheme) Scheme {
 }
 
 // Importantly, confirm that a defanged scheme is not still a valid scheme
-func schemeIsKnown(scheme string, knownSchemes []Scheme) bool {
+func defangedSchemeIsKnown(scheme string, knownSchemes []Scheme) bool {
 	scheme = strings.ToLower(scheme)
 	for _, knownScheme := range knownSchemes {
 		if strings.ToLower(scheme) == knownScheme.UriScheme {
@@ -245,6 +245,32 @@ func schemeIsKnown(scheme string, knownSchemes []Scheme) bool {
 		}
 	}
 	return false
+}
+
+// Confirm that no defanged schemes are known!
+func defangedSchemesAreNotValid(schemes []Scheme) {
+	fmt.Println("[INFO] Checking that the defang algorithm does not produce any valid schemes")
+	for _, scheme := range schemes {
+		defangedScheme := defangScheme(scheme.UriScheme)
+		if defangedSchemeIsKnown(defangedScheme, schemes) {
+			fmt.Printf("[ERROR] Defanged scheme \"%s\" is still a valid scheme\n", defangedScheme)
+			os.Exit(1)
+		}
+	}
+}
+
+// Confirm that there exists a one-to-one mapping between a scheme and its defanged variant
+func defangedSchemesAreOneToOne(schemes []Scheme) {
+	fmt.Println("[INFO] Checking that the defang algorithm is (kind of) invertible")
+	seenDefangedSchemes := make(map[string]struct{})
+	for _, scheme := range schemes {
+		defangedScheme := defangScheme(scheme.UriScheme)
+		if _, exists := seenDefangedSchemes[defangedScheme]; exists {
+			fmt.Printf("[ERROR] Defanged scheme \"%s\" is duplicated, meaning that re-fanging would be ambiguous\n", defangedScheme)
+			os.Exit(1)
+		}
+		seenDefangedSchemes[defangedScheme] = struct{}{}
+	}
 }
 
 func main() {
@@ -257,7 +283,7 @@ func main() {
 	url := "https://www.iana.org/assignments/uri-schemes/uri-schemes.xhtml"
 	table, err := htmltable.NewSliceFromURL[Scheme](url)
 	if err != nil {
-		fmt.Printf("[ERROR] Could not get table by %s: %s", url, err)
+		fmt.Printf("[ERROR] Could not get table by %s: %s\n", url, err)
 		os.Exit(1)
 	}
 
@@ -267,7 +293,7 @@ func main() {
 		scheme := table[i]
 		err := scheme.Validate()
 		if err != nil {
-			fmt.Printf("[ERROR] Invalid Scheme struct: %s; Scheme: %v", err, scheme)
+			fmt.Printf("[ERROR] Invalid Scheme struct: %s; Scheme: %v\n", err, scheme)
 			os.Exit(1)
 		}
 		scheme = cleanScheme(scheme)
@@ -276,26 +302,9 @@ func main() {
 		}
 	}
 
-	// Confirm that no defanged schemes are known!
-	fmt.Println("[INFO] Checking that the defang algorithm does not produce any valid schemes")
-	for _, scheme := range schemes {
-		defangedScheme := defangScheme(scheme.UriScheme)
-		if schemeIsKnown(defangedScheme, schemes) {
-			fmt.Printf("[ERROR] Defanged scheme \"%s\" is still a valid scheme", defangedScheme)
-			os.Exit(1)
-		}
-	}
-
-	fmt.Println("[INFO] Checking that the defang algorithm is (kind of) invertible")
-	seenDefangedSchemes := make(map[string]struct{})
-	for _, scheme := range schemes {
-		defangedScheme := defangScheme(scheme.UriScheme)
-		if _, exists := seenDefangedSchemes[defangedScheme]; exists {
-			fmt.Printf("[ERROR] Defanged scheme \"%s\" is duplicated, meaning that re-fanging would be ambiguous", defangedScheme)
-			os.Exit(1)
-		}
-		seenDefangedSchemes[defangedScheme] = struct{}{}
-	}
+	// Perform safety checks on defang algorithm
+	defangedSchemesAreNotValid(schemes)
+	defangedSchemesAreOneToOne(schemes)
 
 	// Filter for permanent schemes
 	var permanentSchemes []Scheme
