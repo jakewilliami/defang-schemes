@@ -72,6 +72,99 @@ func defangScheme(scheme string) string {
 	return ""
 }
 
+func toScreamingSnake(input string) string {
+	// Regular expression to match camelCase words
+	re := regexp.MustCompile("([a-z])([A-Z])")
+
+	// Insert a space between camelCase words and replace spaces with underscores
+	snake := re.ReplaceAllString(input, "${1}_${2}")
+	snake = strings.ReplaceAll(snake, " ", "_")
+
+	// Convert to upper case
+	return strings.ToUpper(snake)
+}
+
+func constructPyList(strs []string, varName string) string {
+	// Create a string that can be pasted into Python
+	//
+	// Maximum line length as per PEP-8:
+	// https://peps.python.org/pep-0008#maximum-line-length
+	maxLineLength := 79
+	indentNumber := 4
+	currentLineLength := 0
+	var lines []string
+	var currentLine strings.Builder
+	for _, str := range strs {
+		strStr := fmt.Sprintf("\"%s\",", str)
+
+		// New line if the addition of the scheme will go over the maximum
+		// line length as defined by PEP-8
+		if currentLineLength+len(strStr) > maxLineLength {
+			lines = append(lines, currentLine.String())
+			currentLine.Reset()
+			currentLineLength = 0
+		}
+
+		// Add indent to each new line
+		// https://stackoverflow.com/a/22979015
+		//
+		// Use spaces and indent of 4
+		if currentLine.Len() == 0 {
+			indent := strings.Repeat(" ", indentNumber)
+			currentLine.WriteString(indent)
+			currentLineLength = indentNumber
+		}
+
+		// Add space between elements of the list
+		if currentLine.Len() > 0 {
+			currentLine.WriteString(" ")
+			currentLineLength += 1
+		}
+
+		// Add the scheme to the current line
+		currentLine.WriteString(strStr)
+		currentLineLength += len(strStr)
+	}
+
+	// Add the final line to the list
+	if currentLine.Len() > 0 {
+		lines = append(lines, currentLine.String())
+	}
+
+	// Join the output
+	varName = toScreamingSnake(varName)
+	return fmt.Sprintf("%s = [\n%s\n]", varName, strings.Join(lines, "\n"))
+}
+
+func constructPyDict(keys []string, values []string, varName string) string {
+	if len(keys) != len(values) {
+		fmt.Printf("[ERROR] Keys and values must be the same length: keys length = %d, values length = %d", len(keys), len(values))
+		os.Exit(1)
+	}
+
+	indentNumber := 4
+	var lines []string
+
+	// Each new key-value pair is on a new line
+	// https://stackoverflow.com/a/18139301
+	for i, key := range keys {
+		indent := strings.Repeat(" ", indentNumber)
+		lines = append(lines, fmt.Sprintf("%s\"%s\": \"%s\",", indent, key, values[i]))
+	}
+
+	return fmt.Sprintf("%s = {\n%s\n}", varName, strings.Join(lines, "\n"))
+}
+
+func constructPyDefangDict(schemes []string, varName string) string {
+	var defangedSchemed []string
+
+	for _, scheme := range schemes {
+		defangedSchemed = append(defangedSchemed, defangScheme(scheme))
+	}
+
+	return constructPyDict(schemes, defangedSchemed, varName)
+}
+
 // Mostly, the `URI Scheme` field is good, but there is a scheme called `shttp (OBSOLETE)`,
 // which we need to clean up
 func cleanScheme(schemeRaw string) string {
@@ -100,6 +193,7 @@ func main() {
 	}
 
 	// Collect URI schemes into a string list
+	var schemes []string
 	for i := 0; i < len(table); i++ {
 		scheme := table[i]
 		err := scheme.Validate()
@@ -109,7 +203,14 @@ func main() {
 		}
 		scheme.UriScheme = cleanScheme(scheme.UriScheme)
 		if scheme.Status == Permanent {
-			fmt.Println(scheme)
+			schemes = append(schemes, scheme.UriScheme)
 		}
 	}
+
+	// Format the output as a Python list
+	pyStr := constructPyList(schemes, "uriSchemes")
+	fmt.Println(pyStr)
+
+	pyDict := constructPyDefangDict(schemes, "uriSchemesDefangedMap")
+	fmt.Println(pyDict)
 }
