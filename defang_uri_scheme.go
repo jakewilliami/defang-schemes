@@ -1,4 +1,4 @@
-package main
+package defang_uri_schemes
 
 import (
 	"context"
