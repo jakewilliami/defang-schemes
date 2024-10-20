@@ -24,6 +24,7 @@ const (
 
 type Scheme struct {
 	UriScheme           string       `header:"URI Scheme"`
+	DefangedUriScheme   string
 	Template            string       `header:"Template"`
 	Description         string       `header:"Description"`
 	Status              SchemeStatus `header:"Status" validate:"oneof=Permanent Provisional Historical"`
@@ -292,10 +293,9 @@ func cleanScheme(scheme Scheme) Scheme {
 }
 
 // Importantly, confirm that a defanged scheme is not still a valid scheme
-func defangedSchemeIsKnown(scheme string, knownSchemes []Scheme) bool {
-	scheme = strings.ToLower(scheme)
+func defangedSchemeIsKnown(scheme Scheme, knownSchemes []Scheme) bool {
 	for _, knownScheme := range knownSchemes {
-		if strings.ToLower(scheme) == knownScheme.UriScheme {
+		if scheme.DefangedUriScheme == knownScheme.UriScheme {
 			return true
 		}
 	}
@@ -306,9 +306,8 @@ func defangedSchemeIsKnown(scheme string, knownSchemes []Scheme) bool {
 func defangedSchemesAreNotValid(schemes []Scheme) {
 	fmt.Println("[INFO] Checking that the defang algorithm does not produce any valid schemes")
 	for _, scheme := range schemes {
-		defangedScheme := defangScheme(scheme.UriScheme)
-		if defangedSchemeIsKnown(defangedScheme, schemes) {
-			fmt.Printf("[ERROR] Defanged scheme \"%s\" is still a valid scheme\n", defangedScheme)
+		if defangedSchemeIsKnown(scheme, schemes) {
+			fmt.Printf("[ERROR] Defanged scheme \"%s\" is still a valid scheme\n", scheme.DefangedUriScheme)
 			os.Exit(1)
 		}
 	}
@@ -319,19 +318,18 @@ func defangedSchemesAreOneToOne(schemes []Scheme) {
 	fmt.Println("[INFO] Checking that the defang algorithm is (kind of) invertible")
 	seenDefangedSchemes := make(map[string]struct{})
 	for _, scheme := range schemes {
-		defangedScheme := defangScheme(scheme.UriScheme)
-		if _, exists := seenDefangedSchemes[defangedScheme]; exists {
+		if _, exists := seenDefangedSchemes[scheme.DefangedUriScheme]; exists {
 			var duplicateSchemes []string
 			for _, scheme1 := range schemes {
-				if defangScheme(scheme1.UriScheme) == defangedScheme {
+				if defangScheme(scheme1.UriScheme) == scheme.DefangedUriScheme {
 					duplicateSchemes = append(duplicateSchemes, scheme1.UriScheme)
 				}
 			}
 			duplicates := strings.Join(duplicateSchemes, ", ")
-			fmt.Printf("[ERROR] Defanged scheme \"%s\" is duplicated, meaning that re-fanging would be ambiguous due to the following offenders: %s\n", defangedScheme, duplicates)
+			fmt.Printf("[ERROR] Defanged scheme \"%s\" is duplicated, meaning that re-fanging would be ambiguous due to the following offenders: %s\n", scheme.DefangedUriScheme, duplicates)
 			os.Exit(1)
 		}
-		seenDefangedSchemes[defangedScheme] = struct{}{}
+		seenDefangedSchemes[scheme.DefangedUriScheme] = struct{}{}
 	}
 }
 
@@ -359,9 +357,8 @@ func main() {
 			os.Exit(1)
 		}
 		scheme = cleanScheme(scheme)
-		if scheme.Status == Permanent {
-			schemes = append(schemes, scheme)
-		}
+		scheme.DefangedUriScheme = defangScheme(scheme.UriScheme)
+		schemes = append(schemes, scheme)
 	}
 
 	// Perform safety checks on defang algorithm
