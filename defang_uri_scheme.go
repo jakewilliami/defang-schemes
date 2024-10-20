@@ -16,7 +16,7 @@ import (
 //go:generate echo "[INFO] Generating library file"
 //go:generate go run tools/writeconsts/writeconsts.go
 //go:generate echo "[INFO] Checking library file meets defang safety requirements"
-//go:generate go run
+//go:generate go run tools/defangcheck/defangcheck.go
 
 // Status types
 // https://stackoverflow.com/a/71934535
