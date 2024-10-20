@@ -36,6 +36,7 @@ type Scheme struct {
 // https://github.com/JuliaWeb/URIs.jl/blob/dce395c3/src/URIs.jl#L91-L108
 // TODO: handle user info and IPv6 hosts
 var ADDITIONAL_ALLOWED_SCHEME_CHARS = []rune{'-', '+', '.'}
+var ADDITIONAL_ALLOWED_SCHEME_CHARS_PATTERN = additionalAllowedSchemeCharsPattern()
 var SCHEME_PATTERN = schemePattern()
 var CLEAN_SCHEME_PATTERN = cleanSchemePattern()
 
@@ -44,6 +45,15 @@ var CLEAN_SCHEME_PATTERN = cleanSchemePattern()
 func (s *Scheme) Validate() error {
 	validate := validator.New()
 	return validate.Struct(s)
+}
+
+func additionalAllowedSchemeCharsPattern() *regexp.Regexp {
+	var allowedChars string
+	for _, char := range ADDITIONAL_ALLOWED_SCHEME_CHARS {
+		allowedChars += string(char)
+	}
+	pattern := fmt.Sprintf(`[%s]+`, regexp.QuoteMeta(allowedChars))
+	return regexp.MustCompile(pattern)
 }
 
 // Construct scheme pattern to use in validation/cleaning step
@@ -80,7 +90,11 @@ func replaceAtPositions(s string, positions []int, replacement rune) string {
 	return string(runes)
 }
 
-// The goal of defanging is to malform the URI such that it does not open if clicked
+func defangAtPositions(s string, positions []int) string {
+	return replaceAtPositions(s, positions, rune('x'))
+}
+
+// The goal of defanging is to malform the URI such that it does not open if clicked.
 //
 // However, as there is a *[re]fang* option in the Tomtils library, we need an algorithm
 // to map invertibly fanged and defanged schemes.  Many libraries do not support schemes
@@ -89,13 +103,54 @@ func replaceAtPositions(s string, positions []int, replacement rune) string {
 // applications, so we *should* support defanging.
 //
 // There is also consideration to have enough information in a defanged stream such that
-// it is invertible to its original scheme.
+// it is invertible* to its original scheme.  Actually, not invertible, as there will not
+// always be enough information just from the defanged scheme to reconstruct the scheme
+// without having the list of valid schemes.  So what we need is for the defanged scheme
+// to be one-to-one, so that given a defanged scheme, you know that there is a single
+// valid scheme.
 //
 // [1]: https://stackoverflow.com/a/56150152
 // [2]: https://github.com/ioc-fang/ioc_fanger
 func defangScheme(scheme string) string {
-	// TODO
-	return ""
+	// Case 0: check for (hopefully invalid) scheme of length 1
+	if len(scheme) == 1 {
+		fmt.Printf("[ERROR] Unhandled scheme \"%s\" of length 1 in defang algorithm\n", scheme)
+		os.Exit(1)
+	}
+
+	// Case 1: well-defined base case
+	// TODO: another case where we only remove t?
+	if scheme == "http" || scheme == "https" {
+		return defangAtPositions(scheme, []int{1, 2})
+	}
+
+	// Case 2: classical defanging of additional characters to produce invalid schemes
+	if ADDITIONAL_ALLOWED_SCHEME_CHARS_PATTERN.MatchString(scheme) {
+		return ADDITIONAL_ALLOWED_SCHEME_CHARS_PATTERN.ReplaceAllStringFunc(scheme, func(match string) string {
+			return fmt.Sprintf("[%s]", match)
+		})
+	}
+
+	// Case 3: for 3-letter schemes, we can remove the middle one
+	if len(scheme) == 3 {
+		return defangAtPositions(scheme, []int{1})
+	}
+
+	// Case 4: for 2-letter schemes, defang the second character
+	if len(scheme) == 2 {
+		return defangAtPositions(scheme, []int{1})
+	}
+
+	// Case 5: for 4-letter schemes, there should be enough nuance to them to defang only one letter
+	// whilst removing the possibility that a valid scheme remains.  We choose to remove the third
+	// letter, because removing the second would produce ambiguous results (e.g., with icap and imap)
+	if len(scheme) == 4 {
+		return defangAtPositions(scheme, []int{2})
+	}
+
+	// Default case: all remaining schemes should have length > 4, and hence enough information
+	// to naïvely defang as we do HTTP[S]
+	return defangAtPositions(scheme, []int{1, 2})
 }
 
 func toScreamingSnake(input string) string {
@@ -266,7 +321,14 @@ func defangedSchemesAreOneToOne(schemes []Scheme) {
 	for _, scheme := range schemes {
 		defangedScheme := defangScheme(scheme.UriScheme)
 		if _, exists := seenDefangedSchemes[defangedScheme]; exists {
-			fmt.Printf("[ERROR] Defanged scheme \"%s\" is duplicated, meaning that re-fanging would be ambiguous\n", defangedScheme)
+			var duplicateSchemes []string
+			for _, scheme1 := range schemes {
+				if defangScheme(scheme1.UriScheme) == defangedScheme {
+					duplicateSchemes = append(duplicateSchemes, scheme1.UriScheme)
+				}
+			}
+			duplicates := strings.Join(duplicateSchemes, ", ")
+			fmt.Printf("[ERROR] Defanged scheme \"%s\" is duplicated, meaning that re-fanging would be ambiguous due to the following offenders: %s\n", defangedScheme, duplicates)
 			os.Exit(1)
 		}
 		seenDefangedSchemes[defangedScheme] = struct{}{}
