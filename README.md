@@ -103,3 +103,7 @@ const (
 	Historical  SchemeStatus = "Historical"
 )
 ```
+
+## Citation
+
+If your research depends on `defang-uri-schemes`, please consider giving us a formal citation: [`citation.bib`](./citation.bib)
