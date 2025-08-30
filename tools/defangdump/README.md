@@ -3,7 +3,7 @@
 Helper tool to persist scheme data to disk.
 
 ```bash
-$ go run defangdump.go
+$ go run main.go
 Dumping Python code for defining schemes
 
 URI_SCHEMES = [

@@ -19,14 +19,55 @@ The present library suggests a simple algorithm to defang any&trade; URI scheme,
 
 Get the module:
 ```bash
-$ go get github.com/jakewilliami/defang-uri-schemes
+$ go get github.com/jakewilliami/defang-schemes
+```
+
+Basic library usage:
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/jakewilliami/defang-schemes"
+)
+
+type Scheme = defang_schemes.Scheme
+
+var Map = defang_schemes.Map
+
+func main() {
+	scheme := Map[".https"]
+	defanged := scheme.DefangedScheme
+	fmt.Printf("%v\n", defanged)  // "hxxps"
+}
+```
+
+Types:
+```go
+type Scheme struct {
+	Scheme           string
+	DefangedScheme   string
+	Template            string
+	Description         string
+	Status              Status
+	WellKnownUriSupport string
+	Reference           string
+	Notes               string
+}
+
+const (
+	Permanent   Status = "Permanent"
+	Provisional Status = "Provisional"
+	Historical  Status = "Historical"
+)
 ```
 
 Generating the library file and checking its validity:
 ```go
 $ go generate
 [INFO] Generating library file
-[INFO] Found base module path at /Users/jakeireland/projects/defang-uri-schemes
+[INFO] Found base module path at /Users/jakeireland/projects/defang-schemes
 [INFO] found table [columns [Range Registration Procedures] count 3]
 [INFO] found table [columns [URI Scheme Template Description Status Well-Known URI Support Reference Notes] count 384]
 [INFO] found table [columns [Range Registration Procedures Note] count 5]
@@ -36,8 +77,8 @@ $ go generate
 [INFO] found table [columns [Range Registration Procedures] count 6]
 [INFO] found table [columns [Value Description Reference] count 2]
 [INFO] found table [columns [ID Name Organization Contact URI Last Updated] count 113]
-[INFO] Wrote 86552 bytes to "/Users/jakeireland/projects/defang-uri-schemes/uri_scheme_consts.go"
-[INFO] Successfully ran `go fmt` on output file "/Users/jakeireland/projects/defang-uri-schemes/uri_scheme_consts.go"
+[INFO] Wrote 86552 bytes to "/Users/jakeireland/projects/defang-schemes/consts.go"
+[INFO] Successfully ran `go fmt` on output file "/Users/jakeireland/projects/defang-schemes/consts.go"
 [INFO] Checking library file meets defang safety requirements
 [WARN] Only checking validity of permanent URI schemes
 [INFO] Checking that the defang algorithm does not produce any valid schemes
@@ -45,7 +86,7 @@ $ go generate
 ```
 
 ```bash
-$ go run tools/defangdump/defangdump.go
+$ go run tools/defangdump/main.go
 Dumping Python code for defining schemes
 
 URI_SCHEMES = [
@@ -63,47 +104,6 @@ URI_SCHEMES_DEFANGED_MAP = {
 }
 ```
 
-Basic library usage:
-```go
-package main
-
-import (
-	"fmt"
-
-	"github.com/jakewilliami/defang-uri-schemes"
-)
-
-type Scheme = defang_uri_schemes.Scheme
-
-var UriSchemeMap = defang_uri_schemes.UriSchemeMap
-
-func main() {
-	scheme := UriSchemeMap[".https"]
-	defanged := scheme.DefangedUriScheme
-	fmt.Printf("%v\n", defanged)  // "hxxps"
-}
-```
-
-Types:
-```go
-type Scheme struct {
-	UriScheme           string
-	DefangedUriScheme   string
-	Template            string
-	Description         string
-	Status              SchemeStatus
-	WellKnownUriSupport string
-	Reference           string
-	Notes               string
-}
-
-const (
-	Permanent   SchemeStatus = "Permanent"
-	Provisional SchemeStatus = "Provisional"
-	Historical  SchemeStatus = "Historical"
-)
-```
-
 ## Citation
 
-If your research depends on `defang-uri-schemes`, please consider giving us a formal citation: [`citation.bib`](./citation.bib)
+If your research depends on `defang-schemes`, please consider giving us a formal citation: [`citation.bib`](./citation.bib)

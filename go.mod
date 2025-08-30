@@ -1,4 +1,4 @@
-module github.com/jakewilliami/defang-uri-schemes
+module github.com/jakewilliami/defang-schemes
 
 go 1.23.1
 

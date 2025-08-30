@@ -1,4 +1,4 @@
-package defang_uri_schemes
+package defang_schemes
 
 import (
 	"fmt"
@@ -10,30 +10,27 @@ import (
 
 // Generate new const library file with go generate
 //
-// Idea from Simon Sawert:
-// https://github.com/bombsimon/tld-validator/blob/c0d0fbf9/tld.go#L9
-//
 //go:generate echo "[INFO] Generating library file"
-//go:generate go run tools/writeconsts/writeconsts.go
+//go:generate go run tools/writeconsts/main.go
 //go:generate echo "[INFO] Checking library file meets defang safety requirements"
-//go:generate go run tools/defangcheck/defangcheck.go
+//go:generate go run tools/defangcheck/main.go
 
 // Status types
 // https://stackoverflow.com/a/71934535
-type SchemeStatus string
+type Status string
 
 const (
-	Permanent   SchemeStatus = "Permanent"
-	Provisional SchemeStatus = "Provisional"
-	Historical  SchemeStatus = "Historical"
+	Permanent   Status = "Permanent"
+	Provisional Status = "Provisional"
+	Historical  Status = "Historical"
 )
 
 type Scheme struct {
-	UriScheme           string
-	DefangedUriScheme   string
+	Scheme              string
+	DefangedScheme      string
 	Template            string
 	Description         string
-	Status              SchemeStatus `validate:"oneof=Permanent Provisional Historical"`
+	Status              Status `validate:"oneof=Permanent Provisional Historical"`
 	WellKnownUriSupport string
 	Reference           string
 	Notes               string

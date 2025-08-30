@@ -7,19 +7,19 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/jakewilliami/defang-uri-schemes"
+	"github.com/jakewilliami/defang-schemes"
 )
 
-type Scheme = defang_uri_schemes.Scheme
+type Scheme = defang_schemes.Scheme
 
-var UriSchemeMap = defang_uri_schemes.UriSchemeMap
+var SchemeMap = defang_schemes.Map
 
 type ByScheme []Scheme
 
 // Implement the sort.Interface for ByScheme
 func (a ByScheme) Len() int           { return len(a) }
 func (a ByScheme) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ByScheme) Less(i, j int) bool { return a[i].UriScheme < a[j].UriScheme }
+func (a ByScheme) Less(i, j int) bool { return a[i].Scheme < a[j].Scheme }
 
 // For formatting "constant" variables in Python
 func toScreamingSnake(input string) string {
@@ -90,7 +90,7 @@ func constructPySchemeList(schemes []Scheme, varName string) string {
 	var rawSchemes []string
 
 	for _, scheme := range schemes {
-		rawSchemes = append(rawSchemes, scheme.UriScheme)
+		rawSchemes = append(rawSchemes, scheme.Scheme)
 	}
 
 	return constructPyList(rawSchemes, varName)
@@ -121,8 +121,8 @@ func constructPyDefangSchemeDict(schemes []Scheme, varName string) string {
 	var defangedSchemes []string
 
 	for _, scheme := range schemes {
-		rawSchemes = append(rawSchemes, scheme.UriScheme)
-		defangedSchemes = append(defangedSchemes, scheme.DefangedUriScheme)
+		rawSchemes = append(rawSchemes, scheme.Scheme)
+		defangedSchemes = append(defangedSchemes, scheme.DefangedScheme)
 	}
 
 	return constructPyDict(rawSchemes, defangedSchemes, varName)
@@ -130,15 +130,15 @@ func constructPyDefangSchemeDict(schemes []Scheme, varName string) string {
 
 func main() {
 	// Get schemes as list
-	schemes := make([]Scheme, 0, len(UriSchemeMap))
-	for _, scheme := range UriSchemeMap {
+	schemes := make([]Scheme, 0, len(SchemeMap))
+	for _, scheme := range SchemeMap {
 		schemes = append(schemes, scheme)
 	}
 	sort.Sort(ByScheme(schemes))
 
-	fmt.Println("Dumping Python code for defining schemes\n")
-	pyStr := constructPySchemeList(schemes, "uriSchemes")
-	fmt.Println(pyStr, "\n")
-	pyDict := constructPyDefangSchemeDict(schemes, "uriSchemesDefangedMap")
+	fmt.Print("Dumping Python code for defining schemes\n\n")
+	pyStr := constructPySchemeList(schemes, "schemes")
+	fmt.Print(pyStr, "\n\n")
+	pyDict := constructPyDefangSchemeDict(schemes, "schemesDefangedMap")
 	fmt.Println(pyDict)
 }

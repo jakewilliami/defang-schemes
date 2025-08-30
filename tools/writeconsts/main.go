@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime"
 	"sort"
@@ -17,7 +18,7 @@ import (
 	// https://stackoverflow.com/a/74328802
 	"github.com/nfx/go-htmltable"
 
-	"github.com/jakewilliami/defang-uri-schemes"
+	"github.com/jakewilliami/defang-schemes"
 )
 
 // Get file path at runtime
@@ -29,20 +30,33 @@ var (
 )
 
 type Scheme struct {
-	UriScheme           string                          `header:"URI Scheme"`
-	Template            string                          `header:"Template"`
-	Description         string                          `header:"Description"`
-	Status              defang_uri_schemes.SchemeStatus `header:"Status"`
-	WellKnownUriSupport string                          `header:"Well-Known URI Support"`
-	Reference           string                          `header:"Reference"`
-	Notes               string                          `header:"Notes"`
+	Scheme              string                `header:"URI Scheme"`
+	Template            string                `header:"Template"`
+	Description         string                `header:"Description"`
+	Status              defang_schemes.Status `header:"Status"`
+	WellKnownUriSupport string                `header:"Well-Known URI Support"`
+	Reference           string                `header:"Reference"`
+	Notes               string                `header:"Notes"`
+}
+
+func cleanNulls(scheme Scheme) Scheme {
+	val := reflect.ValueOf(&scheme).Elem()
+	for i := 0; i < val.NumField(); i++ {
+		field := val.Field(i)
+		if field.Kind() == reflect.String && field.CanSet() {
+			if field.String() == "-" {
+				field.SetString("")
+			}
+		}
+	}
+	return scheme
 }
 
 var CLEAN_SCHEME_PATTERN = cleanSchemePattern()
 
 // Schemes from IANA can contain additional information in parentheses
 func cleanSchemePattern() *regexp.Regexp {
-	pattern := fmt.Sprintf(`^(%s)(?:\s+\((.*)\))?$`, defang_uri_schemes.SCHEME_PATTERN)
+	pattern := fmt.Sprintf(`^(%s)(?:\s+\((.*)\))?$`, defang_schemes.SCHEME_PATTERN)
 	return regexp.MustCompile(pattern)
 }
 
@@ -57,7 +71,9 @@ func checkWriterErr(err error, file string) {
 // Mostly, the `URI Scheme` field is good, but there is a scheme called `shttp (OBSOLETE)`,
 // which we need to clean up
 func cleanScheme(scheme Scheme) Scheme {
-	schemeRaw := scheme.UriScheme
+	scheme = cleanNulls(scheme)
+
+	schemeRaw := scheme.Scheme
 	matches := CLEAN_SCHEME_PATTERN.FindStringSubmatch(schemeRaw)
 
 	if matches == nil || len(matches) == 0 {
@@ -67,7 +83,7 @@ func cleanScheme(scheme Scheme) Scheme {
 
 	// Set the first match to the URI scheme
 	// NOTE: we start counting from 1 because the first element is the entire match
-	scheme.UriScheme = matches[1]
+	scheme.Scheme = matches[1]
 
 	// If the URI scheme holds additional information, add it to notes
 	if len(matches) > 2 && matches[2] != "" {
@@ -81,7 +97,7 @@ func cleanScheme(scheme Scheme) Scheme {
 	}
 
 	// Ensure scheme is lowercase
-	scheme.UriScheme = strings.ToLower(scheme.UriScheme)
+	scheme.Scheme = strings.ToLower(scheme.Scheme)
 
 	// Return the (potentially modified) scheme
 	return scheme
@@ -104,13 +120,13 @@ func main() {
 	}
 
 	// Collect URI schemes into a map
-	schemeMap := make(map[string]defang_uri_schemes.Scheme, len(table))
+	schemeMap := make(map[string]defang_schemes.Scheme, len(table))
 	for i := 0; i < len(table); i++ {
 		scheme := cleanScheme(table[i])
 
-		schemeMap[scheme.UriScheme] = defang_uri_schemes.Scheme{
-			UriScheme:           scheme.UriScheme,
-			DefangedUriScheme:   defang_uri_schemes.DefangScheme(scheme.UriScheme),
+		schemeMap[scheme.Scheme] = defang_schemes.Scheme{
+			Scheme:              scheme.Scheme,
+			DefangedScheme:      defang_schemes.DefangScheme(scheme.Scheme),
 			Template:            scheme.Template,
 			Description:         scheme.Description,
 			Status:              scheme.Status,
@@ -118,7 +134,7 @@ func main() {
 			Reference:           scheme.Reference,
 			Notes:               scheme.Notes,
 		}
-		schemeToValidate := schemeMap[scheme.UriScheme]
+		schemeToValidate := schemeMap[scheme.Scheme]
 		err := (&schemeToValidate).Validate()
 		if err != nil {
 			fmt.Printf("[ERROR] Invalid Scheme struct: %s; Scheme: %v\n", err, scheme)
@@ -138,9 +154,9 @@ func main() {
 	// Write to Go file
 	// TODO: document this section
 	// TODO: get package meta info dynamically
-	pkgName := "defang_uri_schemes"
-	dataMapName := "UriSchemeMap"
-	outFile := filepath.Join(rootpath, "uri_scheme_consts.go")
+	pkgName := "defang_schemes"
+	dataMapName := "Map"
+	outFile := filepath.Join(rootpath, "consts.go")
 
 	file, err := os.Create(outFile)
 	if err != nil {
@@ -168,7 +184,7 @@ func main() {
 
 	for _, key := range schemeKeyVec {
 		scheme := schemeMap[key]
-		_, err = writer.WriteString(fmt.Sprintf("\"%s\": Scheme{\nUriScheme: \"%s\",\nDefangedUriScheme: \"%s\",\nTemplate: %s,\nDescription: %s,\nStatus: %s,\nWellKnownUriSupport: %s,\nReference: %s,\nNotes: %s,\n},\n", scheme.UriScheme, scheme.UriScheme, scheme.DefangedUriScheme, strconv.Quote(scheme.Template), strconv.Quote(scheme.Description), scheme.Status, strconv.Quote(scheme.WellKnownUriSupport), strconv.Quote(scheme.Reference), strconv.Quote(scheme.Notes)))
+		_, err = writer.WriteString(fmt.Sprintf("\"%s\": Scheme{\nScheme: \"%s\",\nDefangedScheme: \"%s\",\nTemplate: %s,\nDescription: %s,\nStatus: %s,\nWellKnownUriSupport: %s,\nReference: %s,\nNotes: %s,\n},\n", scheme.Scheme, scheme.Scheme, scheme.DefangedScheme, strconv.Quote(scheme.Template), strconv.Quote(scheme.Description), scheme.Status, strconv.Quote(scheme.WellKnownUriSupport), strconv.Quote(scheme.Reference), strconv.Quote(scheme.Notes)))
 		checkWriterErr(err, outFile)
 	}
 
