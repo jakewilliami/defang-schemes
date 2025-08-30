@@ -46,8 +46,8 @@ func main() {
 Types:
 ```go
 type Scheme struct {
-	Scheme           string
-	DefangedScheme   string
+	Scheme              string
+	DefangedScheme      string
 	Template            string
 	Description         string
 	Status              Status
