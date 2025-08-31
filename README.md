@@ -32,12 +32,8 @@ import (
 	"github.com/jakewilliami/defang-schemes"
 )
 
-type Scheme = defang_schemes.Scheme
-
-var Map = defang_schemes.Map
-
 func main() {
-	scheme := Map[".https"]
+	scheme := defang_schemes.Map["https"]
 	defanged := scheme.DefangedScheme
 	fmt.Printf("%v\n", defanged)  // "hxxps"
 }
