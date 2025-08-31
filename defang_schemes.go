@@ -26,8 +26,8 @@ const (
 )
 
 type Scheme struct {
-	Scheme              string
-	DefangedScheme      string
+	Scheme              string `validate:"required"`
+	DefangedScheme      string `validate:"required"`
 	Template            string
 	Description         string
 	Status              Status `validate:"oneof=Permanent Provisional Historical"`
@@ -46,7 +46,7 @@ var SCHEME_PATTERN = schemePattern()
 // Validate Scheme struct
 // https://stackoverflow.com/a/71934231
 func (s *Scheme) Validate() error {
-	validate := validator.New()
+	validate := validator.New(validator.WithRequiredStructEnabled())
 	return validate.Struct(s)
 }
 
