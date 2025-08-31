@@ -137,7 +137,7 @@ func main() {
 		schemeToValidate := schemeMap[scheme.Scheme]
 		err := (&schemeToValidate).Validate()
 		if err != nil {
-			fmt.Printf("[ERROR] Invalid Scheme struct: %s; Scheme: %v\n", err, scheme)
+			fmt.Printf("[ERROR] Invalid Scheme struct: %s; Scheme: %+v\n", err, scheme)
 			os.Exit(1)
 		}
 	}
