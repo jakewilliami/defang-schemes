@@ -60,7 +60,7 @@ const (
 ```
 
 Generating the library file and checking its validity:
-```go
+```shell
 $ go generate
 [INFO] Generating library file
 [INFO] Found base module path at /Users/jakeireland/projects/defang-schemes
@@ -81,7 +81,7 @@ $ go generate
 [INFO] Checking that the defang algorithm is (kind of) invertible
 ```
 
-```bash
+```shell
 $ go run tools/defangdump/main.go
 Dumping Python code for defining schemes
 
