@@ -69,27 +69,30 @@ func schemePattern() *regexp.Regexp {
 	return regexp.MustCompile(pattern)
 }
 
-// Within s, replace characters at `positions' with the rune defined in `replacement`
+// Within s, defang characters at `positions' with the rune `x` or `z`
 //
 // For example:
 // ```go
-// replaceAtPositions("hello", []int{1, 2}, rune('x')) == "hxxlo"
+// replaceAtPositions("hello", []int{1, 2}) == "hxxlo"
+// replaceAtPositions("hexlo", []int{1, 2}) == "hxzlo"
 // ```
-func replaceAtPositions(s string, positions []int, replacement rune) string {
+func defangAtPositions(s string, positions []int) string {
 	runes := []rune(s)
 
 	for _, pos := range positions {
 		if pos >= 0 && pos < len(runes) {
-			runes[pos] = replacement
+			// Even though `x` is the default character to use to defang a scheme,
+			// it is possible that the character in this position is already an `x`,
+			// so we need to choose a different character: `z`
+			if runes[pos] == rune('x') {
+				runes[pos] = rune('z')
+			} else {
+				runes[pos] = rune('x')
+			}
 		}
 	}
 
 	return string(runes)
-}
-
-// TODO: shouldn't we check that the characters at this position are not already x?
-func defangAtPositions(s string, positions []int) string {
-	return replaceAtPositions(s, positions, rune('x'))
 }
 
 // The goal of defanging is to malform the URI such that it does not open if clicked.
