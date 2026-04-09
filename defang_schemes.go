@@ -87,6 +87,7 @@ func replaceAtPositions(s string, positions []int, replacement rune) string {
 	return string(runes)
 }
 
+// TODO: shouldn't we check that the characters at this position are not already x?
 func defangAtPositions(s string, positions []int) string {
 	return replaceAtPositions(s, positions, rune('x'))
 }
